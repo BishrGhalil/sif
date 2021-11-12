@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS=-Wall -Wextra -std=c11 -ggdb
+CFLAGS=-Wall -std=c11 -ggdb
 LIBS=
 SRC=sif.c recdir.c argparse.c
 
@@ -9,5 +9,3 @@ main: $(SRC)
 
 clean:
 	rm -rf sif
-	rm -rf argparse.o
-
