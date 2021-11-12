@@ -5,6 +5,7 @@
 #include "./recdir.h"
 
 // TODO: try to get rid of join_path in as many places as possible
+// 	FLAG to search headdin files
 char *join_path(const char *base, const char *file)
 {
     size_t base_len = strlen(base);
@@ -73,19 +74,32 @@ RECDIR *recdir_open(const char *dir_path)
     return recdir;
 }
 
-struct dirent *recdir_read(RECDIR *recdir)
+struct dirent *recdir_read(RECDIR *recdir, int hidden)
 {
     while (recdir->stack_size > 0) {
         RECDIR_Frame *top = recdir_top(recdir);
         struct dirent *ent = readdir(top->dir);
         if (ent) {
             if (ent->d_type == DT_DIR) {
-                if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
-                    continue;
-                } else {
+		if (hidden) {
+		    if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
+		    continue;
+		    }
+		    else {
                     recdir_push(recdir, join_path(top->path, ent->d_name));
                     continue;
-                }
+		    }
+		} 
+		else {
+		    if (ent->d_name[0] == '.') {
+			continue;
+		    }
+		    else {
+                    recdir_push(recdir, join_path(top->path, ent->d_name));
+                    continue;
+		    }
+		}
+
             } else {
                 return ent;
             }

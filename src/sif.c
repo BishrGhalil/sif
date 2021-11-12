@@ -9,8 +9,24 @@
 #include <errno.h>
 #include <regex.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include "recdir.h"
+#include "argparse.h"
+
+#define VERSION "1.0"
+
+int version_flag = 0;
+int matches_flag = 0;
+int nfiles_flag = 0;
+int nlines_flag = 0;
+int hidden_flag = 0;
+int sigint_flag = 0;
+
+static const char *const usage[] = {
+    "sif [options] -s <regex_pattern> -p <path>",
+    NULL,
+};
 
 typedef struct linked_list {
     int list_size;
@@ -18,6 +34,10 @@ typedef struct linked_list {
     char *line;
     struct linked_list *next;
 } list;
+
+void sighandler(int sig) {
+    sigint_flag = 1;
+}
 
 int lappend(list *l, char *line)
 {
@@ -80,35 +100,52 @@ list *fgetlines(FILE *file)
 int main(int argc, char **argv)
 {
 
-    char *dir_path;
-    char regex_ptrn[512];
-    int matches = 0;
-    regex_t regex;
-    int compstat, searchstat;
+    sigaction(SIGINT, &(struct sigaction){ .sa_handler = sighandler }, NULL);
+    int matches = 0,
+	nlines = 0,
+	nfiles = 0,
+	compstat = 0,
+	searchstat = 0;
 
-    switch (argc) {
-	case 2:
-	    dir_path = (char *) malloc(sizeof(char) * 2);
-	    strcpy(dir_path, ".\0");
-	    if (strlen(argv[1]) > 512) {
-		fprintf(stderr, "Don't use more than 512 regex character.\n");
-		exit(1);
-	    } 
-	    strcpy(regex_ptrn, argv[1]);
-	    break;
-	case 3:
-	    if (strlen(argv[1]) > 512) {
-		fprintf(stderr, "Don't use more than 512 regex character.\n");
-		exit(1);
-	    } 
-	    strcpy(regex_ptrn, argv[1]);
-	    dir_path = strdup(argv[2]);
-	    break;
-	default:
-	    fprintf(stderr, "Usage: sif <regex pattern> <path>\n");
-	    exit(1);
+    const char *dir_path = NULL;
+    const char *regex_ptrn = NULL;
+    regex_t regex;
+
+    struct argparse_option options[]= {
+	OPT_HELP(),
+	OPT_GROUP("Arguments"),
+	OPT_STRING('s', "search", &regex_ptrn, "Pattern to search for"),
+	OPT_STRING('p', "path", &dir_path, "Directory path"),
+	OPT_GROUP("Search options"),
+	OPT_BOOLEAN('u', "hidden", &hidden_flag, "Search hidden folders"),
+	OPT_GROUP("Output options"),
+	OPT_BOOLEAN('m', "matches", &matches_flag, "Matches number"),
+	OPT_BOOLEAN('l', "lines", &nlines_flag, "Total searched lines"),
+	OPT_BOOLEAN('f', "files", &nfiles_flag, "Total searched files"),
+	OPT_GROUP("Info options"),
+	OPT_BOOLEAN('v', "version", &version_flag, "Version"),
+	OPT_END(),
+    };
+
+    struct argparse argparse;
+    argparse_init(&argparse, options, usage, 2);
+    argparse_describe(&argparse,"\nSearch for regex patterns inside files.", "\nBishr Ghalil.");
+
+    argc = argparse_parse(&argparse, argc, argv);
+
+    if (version_flag) {
+	printf("Version: %s\n", VERSION);
+	exit(0);
     }
 
+    if (!dir_path) {
+	argparse_usage(&argparse);
+	exit(1);
+    }
+    if (!regex_ptrn) {
+	argparse_usage(&argparse);
+	exit(1);
+    }
     compstat = regcomp(&regex, regex_ptrn, 0);
     if (compstat != 0) {
 	fprintf(stderr, "REGEX pattern can't be compiled.\n");
@@ -116,23 +153,30 @@ int main(int argc, char **argv)
     }
 
     RECDIR *recdir = recdir_open(dir_path);
+    if (!recdir) {
+	fprintf(stderr, "ERROR: Please use a valid path, Directory \"%s\" does not exist.\n", dir_path);
+	exit(1);
+    }
 
     errno = 0;
-    struct dirent *ent = recdir_read(recdir);
+    struct dirent *ent = recdir_read(recdir, hidden_flag);
     FILE *file;
-    while (ent) {
+    while (ent && !sigint_flag) {
 	char *path = join_path(recdir_top(recdir)->path, ent->d_name);
 	if (access(path, W_OK) != 0) {
 	    fprintf(stderr, "%s.\n", strerror(errno));
 	    exit(1);
 	}
 	file = fopen(path, "r");
+	nfiles++;
 	list *lines = fgetlines(file);
-	while (lines != NULL) {
+	int i = 0;
+	while (lines != NULL && !sigint_flag) {
 	    searchstat = regexec(&regex, lines->line, 0, NULL, 0);
+	    nlines++;
 	    if (searchstat == 0) {
 		printf("FILE: %s\n", path);
-		printf("%s\n", lines->line);
+		printf("(%d) %s\n", ++i, lines->line);
 		matches ++;
 	    }
 	    lines = lines->next;
@@ -141,7 +185,7 @@ int main(int argc, char **argv)
 
 	free(lines);
 	fclose(file);
-	ent = recdir_read(recdir);
+	ent = recdir_read(recdir, hidden_flag);
     }
 
     if (errno != 0) {
@@ -150,7 +194,16 @@ int main(int argc, char **argv)
     }
 
     recdir_close(recdir);
-    printf("Matches %d\n", matches);
+    if (matches_flag) {
+	printf("Matches: %d\t", matches);
+    }
+    if (nfiles_flag) {
+	printf("Files: %d\t", nfiles);
+    }
+    if (nlines_flag) {
+	printf("Lines: %d\t", nlines);
+    }
+    printf("\n");
 
     return EXIT_SUCCESS;
 }

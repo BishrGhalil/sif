@@ -27,7 +27,7 @@ int recdir_push(RECDIR *recdir, char *path);
 void recdir_pop(RECDIR *recdir);
 
 RECDIR *recdir_open(const char *dir_path);
-struct dirent *recdir_read(RECDIR *recdirp);
+struct dirent *recdir_read(RECDIR *recdirp, int hidden);
 void recdir_close(RECDIR *recdirp);
 
 #endif // RECDIR_H_
