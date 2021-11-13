@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS=-Wall -Wextra -std=c11 -ggdb
+CFLAGS=-Wall -std=c11 -ggdb
 LIBS=
 SRC=src/sif.c src/recdir.c src/argparse.c
 
@@ -13,5 +13,4 @@ uninstall:
 	rm -rf /usr/bin/sif
 clean:
 	rm -rf sif
-	rm -rf argparse.o
 
