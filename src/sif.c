@@ -23,6 +23,10 @@ int nlines_flag = 0;
 int hidden_flag = 0;
 int sigint_flag = 0;
 
+int matches = 0;
+int nfiles = 0;
+int nlines = 0;
+
 static const char *const usage[] = {
     "sif [options] -s <regex_pattern> -p <path>",
     NULL,
@@ -35,8 +39,26 @@ typedef struct linked_list {
     struct linked_list *next;
 } list;
 
+
+void printres(int matches_flag, int nfiles_flag, int nlines_flag)
+{
+    if (matches_flag) {
+	printf("Matches: %d\t", matches);
+    }
+    if (nfiles_flag) {
+	printf("Files: %d\t", nfiles);
+    }
+    if (nlines_flag) {
+	printf("Lines: %d\t", nlines);
+    }
+    printf("\n");
+}
+
 void sighandler(int sig) {
     sigint_flag = 1;
+    printres(matches_flag, nfiles_flag, nlines_flag);
+    exit(0);
+    return;
 }
 
 int lappend(list *l, char *line)
@@ -101,10 +123,7 @@ int main(int argc, char **argv)
 {
 
     sigaction(SIGINT, &(struct sigaction){ .sa_handler = sighandler }, NULL);
-    int matches = 0,
-	nlines = 0,
-	nfiles = 0,
-	compstat = 0,
+    int compstat = 0,
 	searchstat = 0;
 
     const char *dir_path = NULL;
@@ -194,16 +213,6 @@ int main(int argc, char **argv)
     }
 
     recdir_close(recdir);
-    if (matches_flag) {
-	printf("Matches: %d\t", matches);
-    }
-    if (nfiles_flag) {
-	printf("Files: %d\t", nfiles);
-    }
-    if (nlines_flag) {
-	printf("Lines: %d\t", nlines);
-    }
-    printf("\n");
-
+    printres(matches_flag, nfiles_flag, nlines_flag);
     return EXIT_SUCCESS;
 }
