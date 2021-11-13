@@ -42,6 +42,7 @@ typedef struct linked_list {
 
 void printres(int matches_flag, int nfiles_flag, int nlines_flag)
 {
+    printf("\n");
     if (matches_flag) {
 	printf("Matches: %d\t", matches);
     }
