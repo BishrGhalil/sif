@@ -1,6 +1,5 @@
 // TODO:
-// 	 -1 free allocations and check for NULL allocations
-// 	 -2 more flags arguments
+// 	 -1 more flags arguments
 #define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <assert.h>
@@ -32,14 +31,6 @@ static const char *const usage[] = {
     NULL,
 };
 
-typedef struct linked_list {
-    int list_size;
-    int line_size;
-    char *line;
-    struct linked_list *next;
-} list;
-
-
 void printres(int matches_flag, int nfiles_flag, int nlines_flag)
 {
     printf("\n");
@@ -59,6 +50,27 @@ void sighandler(int sig) {
     sigint_flag = 1;
     printres(matches_flag, nfiles_flag, nlines_flag);
     exit(0);
+    return;
+}
+
+
+typedef struct linked_list {
+    int list_size;
+    int line_size;
+    char *line;
+    struct linked_list *next;
+} list;
+
+
+void freelist(list *l)
+{
+    while(l) {
+	free(l->line);
+	if (l->next) {
+	    freelist(l->next);
+	}
+	free(l);
+    }
     return;
 }
 
@@ -203,7 +215,7 @@ int main(int argc, char **argv)
 	}
 	
 
-	free(lines);
+	freelist(lines);
 	fclose(file);
 	ent = recdir_read(recdir, hidden_flag);
     }
