@@ -1,4 +1,4 @@
-CC=clang
+CC=gcc
 CFLAGS=-Wall -std=c11 -ggdb
 LIBS=
 SRC=src/sif.c src/recdir.c src/argparse.c
