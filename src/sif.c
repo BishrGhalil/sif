@@ -47,6 +47,7 @@ void printres(int matches_flag, int nfiles_flag, int nlines_flag)
 }
 
 void sighandler(int sig) {
+    (void) sig;
     sigint_flag = 1;
     printres(matches_flag, nfiles_flag, nlines_flag);
     exit(0);
@@ -146,16 +147,16 @@ int main(int argc, char **argv)
     struct argparse_option options[]= {
 	OPT_HELP(),
 	OPT_GROUP("Arguments"),
-	OPT_STRING('s', "search", &regex_ptrn, "Pattern to search for"),
-	OPT_STRING('p', "path", &dir_path, "Directory path"),
+	OPT_STRING('s', "search", &regex_ptrn, "Pattern to search for", NULL, 0, 0),
+	OPT_STRING('p', "path", &dir_path, "Directory path", NULL, 0, 0),
 	OPT_GROUP("Search options"),
-	OPT_BOOLEAN('u', "hidden", &hidden_flag, "Search hidden folders"),
+	OPT_BOOLEAN('u', "hidden", &hidden_flag, "Search hidden folders", NULL, 0, 0),
 	OPT_GROUP("Output options"),
-	OPT_BOOLEAN('m', "matches", &matches_flag, "Matches number"),
-	OPT_BOOLEAN('l', "lines", &nlines_flag, "Total searched lines"),
-	OPT_BOOLEAN('f', "files", &nfiles_flag, "Total searched files"),
+	OPT_BOOLEAN('m', "matches", &matches_flag, "Matches number", NULL, 0, 0),
+	OPT_BOOLEAN('l', "lines", &nlines_flag, "Total searched lines", NULL, 0, 0),
+	OPT_BOOLEAN('f', "files", &nfiles_flag, "Total searched files", NULL, 0, 0),
 	OPT_GROUP("Info options"),
-	OPT_BOOLEAN('v', "version", &version_flag, "Version"),
+	OPT_BOOLEAN('v', "version", &version_flag, "Version", NULL, 0, 0),
 	OPT_END(),
     };
 
@@ -163,7 +164,7 @@ int main(int argc, char **argv)
     argparse_init(&argparse, options, usage, 2);
     argparse_describe(&argparse,"\nSearch for regex patterns inside files.", "\nBishr Ghalil.");
 
-    argc = argparse_parse(&argparse, argc, argv);
+    argc = argparse_parse(&argparse, argc,(void *) argv);
 
     if (version_flag) {
 	printf("Version: %s\n", VERSION);
