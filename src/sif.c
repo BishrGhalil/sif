@@ -1,5 +1,4 @@
-// TODO:
-// 	 -1 more flags arguments
+// TODO: more flags arguments
 #define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <assert.h>
@@ -14,6 +13,7 @@
 #include "argparse.h"
 
 #define VERSION "1.0"
+#define LINE_SIZE 512
 
 int version_flag = 0;
 int matches_flag = 0;
@@ -51,85 +51,6 @@ void sighandler(int sig) {
     printres(matches_flag, nfiles_flag, nlines_flag);
     exit(0);
     return;
-}
-
-
-typedef struct linked_list {
-    int list_size;
-    int line_size;
-    char *line;
-    struct linked_list *next;
-} list;
-
-
-void freelist(list *l)
-{
-    while(l) {
-	free(l->line);
-	if (l->next) {
-	    freelist(l->next);
-	}
-	free(l);
-    }
-    return;
-}
-
-int lappend(list *l, char *line)
-{
-    list *tmp = l;
-    if (tmp->list_size == 0) {
-	tmp->line = strdup(line);
-	tmp->line_size = strlen(line);
-	tmp->next = NULL;
-	tmp->list_size = 1;
-	return 1;
-    }
-
-    while (tmp->next) {
-	tmp = tmp->next;
-    }
-
-    tmp->next = (list *) malloc(sizeof(list));
-    if (!tmp->next) {
-	fprintf(stderr, "Could not allocate more memory.\n");
-	return 0;
-    }
-
-    tmp->next->line = strdup(line);
-    tmp->next->line_size = strlen(line);
-    tmp->next->next = NULL;
-    l->list_size += 1;
-    return 1;
-}
-
-list *fgetlines(FILE *file)
-{
-    int line_size = 512;
-    char ch;
-    char *line = (char *) malloc(sizeof(char) * line_size);
-    list *lines = (list *) malloc(sizeof(list));
-    lines->list_size = 0;
-    int i = 0;
-    while(1) {
-	ch = fgetc(file);
-	if (ch == EOF) {
-	    line[i] = '\0';
-	    lappend(lines, line);
-	    free(line);
-	    return lines;
-	}
-	if (i >= line_size) {
-	    line_size *= 2;
-	    line = realloc(line, line_size);
-       }
-
-	line[i++] = ch;
-	if (ch == '\n') {
-	    line[i] = '\0';
-	    lappend(lines, line);
-	    i = 0;
-	}
-   }
 }
 
 int main(int argc, char **argv)
@@ -200,22 +121,32 @@ int main(int argc, char **argv)
 	    exit(1);
 	}
 	file = fopen(path, "r");
+	if (errno != 0) {
+	    fprintf(stderr, "ERROR: Could not read the file: %s, %s\n", path, strerror(errno));
+	    exit(1);
+	}
 	nfiles++;
-	list *lines = fgetlines(file);
 	int i = 0;
-	while (lines != NULL && !sigint_flag) {
-	    searchstat = regexec(&regex, lines->line, 0, NULL, 0);
+	int getline_res = 0;
+	while (getline_res != -1) {
+	    char *lineptr = (char *) malloc(sizeof(char *) * LINE_SIZE);
+	    int line_size = LINE_SIZE;
+	    getline_res = getline(&lineptr, &line_size, file);
+	    searchstat = regexec(&regex, lineptr, 0, NULL, 0);
 	    nlines++;
 	    if (searchstat == 0) {
 		printf("FILE: %s\n", path);
-		printf("(%d) %s\n", ++i, lines->line);
+		printf("(%d) %s\n", ++i, lineptr);
 		matches ++;
 	    }
-	    lines = lines->next;
+	    free(lineptr);
 	}
-	
 
-	freelist(lines);
+
+	if (errno != 0) {
+	    fprintf(stderr, "ERROR: %s\n", strerror(errno));
+	    exit(1);
+	}
 	fclose(file);
 	ent = recdir_read(recdir, hidden_flag);
     }
