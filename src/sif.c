@@ -15,6 +15,9 @@
 #define VERSION "1.0"
 #define LINE_SIZE 512
 
+char *lineptr;
+int line_size;
+
 int version_flag = 0;
 int matches_flag = 0;
 int nfiles_flag = 0;
@@ -35,13 +38,13 @@ void printres(int matches_flag, int nfiles_flag, int nlines_flag)
 {
     printf("\n");
     if (matches_flag) {
-	printf("Matches: %d\t", matches);
+        printf("Matches: %d\t", matches);
     }
     if (nfiles_flag) {
-	printf("Files: %d\t", nfiles);
+        printf("Files: %d\t", nfiles);
     }
     if (nlines_flag) {
-	printf("Lines: %d\t", nlines);
+        printf("Lines: %d\t", nlines);
     }
     printf("\n");
 }
@@ -49,8 +52,25 @@ void printres(int matches_flag, int nfiles_flag, int nlines_flag)
 void sighandler(int sig) {
     sigint_flag = 1;
     printres(matches_flag, nfiles_flag, nlines_flag);
+    free(lineptr);
     exit(0);
     return;
+}
+
+void exit_error(int errnum, int exit_status, char *msg)
+{
+    if (msg && errnum != 0) {
+	fprintf(stderr, "ERROR: %s, %s\n", msg, strerror(errnum));
+    }
+    else if (errnum != 0){
+	fprintf(stderr, "ERROR: %s\n", strerror(errnum));
+    } 
+    else {
+	fprintf(stderr, "ERROR\n");
+    }
+
+    printres(matches_flag, nfiles_flag, nlines_flag);
+    exit(exit_status);
 }
 
 int main(int argc, char **argv)
@@ -58,7 +78,7 @@ int main(int argc, char **argv)
 
     sigaction(SIGINT, &(struct sigaction){ .sa_handler = sighandler }, NULL);
     int compstat = 0,
-	searchstat = 0;
+        searchstat = 0;
 
     const char *dir_path = NULL;
     const char *regex_ptrn = NULL;
@@ -78,7 +98,7 @@ int main(int argc, char **argv)
 	OPT_GROUP("Info options"),
 	OPT_BOOLEAN('v', "version", &version_flag, "Version"),
 	OPT_END(),
-    };
+};
 
     struct argparse argparse;
     argparse_init(&argparse, options, usage, 2);
@@ -87,76 +107,76 @@ int main(int argc, char **argv)
     argc = argparse_parse(&argparse, argc, argv);
 
     if (version_flag) {
-	printf("Version: %s\n", VERSION);
-	exit(0);
+        printf("Version: %s\n", VERSION);
+        exit(0);
     }
 
     if (!dir_path) {
-	argparse_usage(&argparse);
-	exit(1);
+        argparse_usage(&argparse);
+        exit(1);
     }
     if (!regex_ptrn) {
-	argparse_usage(&argparse);
-	exit(1);
+        argparse_usage(&argparse);
+        exit(1);
     }
     compstat = regcomp(&regex, regex_ptrn, 0);
     if (compstat != 0) {
-	fprintf(stderr, "REGEX pattern can't be compiled.\n");
-	exit(1);
+        fprintf(stderr, "REGEX pattern can't be compiled.\n");
+        exit(1);
     }
 
     RECDIR *recdir = recdir_open(dir_path);
     if (!recdir) {
-	fprintf(stderr, "ERROR: Please use a valid path, Directory \"%s\" does not exist.\n", dir_path);
-	exit(1);
+        fprintf(stderr, "ERROR: Please use a valid path, Directory \"%s\" does not exist.\n", dir_path);
+        exit(1);
     }
 
     errno = 0;
     struct dirent *ent = recdir_read(recdir, hidden_flag);
     FILE *file;
     while (ent && !sigint_flag) {
-	char *path = join_path(recdir_top(recdir)->path, ent->d_name);
-	if (access(path, W_OK) != 0) {
-	    fprintf(stderr, "%s.\n", strerror(errno));
-	    exit(1);
-	}
-	file = fopen(path, "r");
-	if (errno != 0) {
-	    fprintf(stderr, "ERROR: Could not read the file: %s, %s\n", path, strerror(errno));
-	    exit(1);
-	}
-	nfiles++;
-	int i = 0;
-	int getline_res = 0;
-	while (getline_res != -1) {
-	    char *lineptr = (char *) malloc(sizeof(char *) * LINE_SIZE);
-	    int line_size = LINE_SIZE;
-	    getline_res = getline(&lineptr, &line_size, file);
-	    searchstat = regexec(&regex, lineptr, 0, NULL, 0);
-	    nlines++;
-	    if (searchstat == 0) {
-		printf("FILE: %s\n", path);
-		printf("(%d) %s\n", ++i, lineptr);
-		matches ++;
-	    }
-	    free(lineptr);
-	}
+        char *path = join_path(recdir_top(recdir)->path, ent->d_name);
+        if (access(path, W_OK) != 0) {
+	    exit_error(errno, 1, NULL);
+        }
+        file = fopen(path, "r");
+        if (errno != 0) {
+	    printf("FILE: %s\n", path);
+	    exit_error(errno, 1, "Could not read the file");
+        }
+        nfiles++;
+        int i = 0;
+        // FIXME
+        lineptr = (char *) malloc(sizeof(char *) * LINE_SIZE);
+        line_size = LINE_SIZE;
+        int getline_res = 0;
+        while (getline_res != -1) {
+            getline_res = getline(&lineptr, &line_size, file);
+            searchstat = regexec(&regex, lineptr, 0, NULL, 0);
+            nlines++;
+            if (searchstat == 0) {
+                printf("FILE: %s\n", path);
+                printf("(%d) %s\n", ++i, lineptr);
+                matches ++;
+            }
+        }
 
 
-	if (errno != 0) {
-	    fprintf(stderr, "ERROR: %s\n", strerror(errno));
-	    exit(1);
-	}
-	fclose(file);
-	ent = recdir_read(recdir, hidden_flag);
+        if (errno != 0) {
+            free(lineptr);
+	    exit_error(errno, 1, path);
+        }
+        fclose(file);
+        ent = recdir_read(recdir, hidden_flag);
     }
 
     if (errno != 0) {
-	fprintf(stderr, "ERROR: could not read the directory: %s, %s\n", recdir_top(recdir)->path, strerror(errno));
-	exit(1);
+        free(lineptr);
+	exit_error(errno, 1, NULL);
     }
 
     recdir_close(recdir);
     printres(matches_flag, nfiles_flag, nlines_flag);
+    free(lineptr);
     return EXIT_SUCCESS;
 }
