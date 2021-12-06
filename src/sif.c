@@ -156,7 +156,7 @@ int main(int argc, char **argv)
             searchstat = regexec(&regex, lineptr, 0, NULL, 0);
             nlines++;
             if (searchstat == 0) {
-                printf("FILE: (%s) AT (%d)\n%s\n", path, ++i, lineptr);
+                printf("%s:%d\n%s\n", path, ++i, lineptr);
                 matches ++;
             }
         }
