@@ -23,7 +23,12 @@
 #define GREEN "\e[32m"
 
 char *lineptr;
+char *path;
 char *line;
+char *dir_path;
+char *re_pattern;
+pcre *re;
+
 size_t line_size;
 
 int version_flag = 0;
@@ -37,10 +42,17 @@ int matches = 0;
 int nfiles = 0;
 int lines_number = 0;
 
+
 static const char *const usage[] = {
     "sif [options] -s <re_pattern> -p <path>",
     NULL,
 };
+
+void cleanup() {
+  if (re) {
+    pcre_free(re);
+  }
+}
 
 void printres(int matches_flag, int nfiles_flag, int lines_number_flag) {
   if (matches_flag) {
@@ -59,7 +71,7 @@ void sighandler(int sig) {
   (void)sig;
   sigint_flag = 1;
   printres(matches_flag, nfiles_flag, lines_number_flag);
-  free(lineptr);
+  cleanup();
   exit(0);
   return;
 }
@@ -89,13 +101,9 @@ int main(int argc, char **argv) {
 
   sigaction(SIGINT, &(struct sigaction){.sa_handler = sighandler}, NULL);
 
-  pcre *re;
   const char *error;
   int erroffset;
   int rc;
-
-  const char *dir_path = NULL;
-  const char *re_pattern = NULL;
 
   struct argparse_option options[] = {
       OPT_HELP(),
@@ -161,7 +169,7 @@ int main(int argc, char **argv) {
   struct dirent *ent = recdir_read(recdir, hidden_flag);
   FILE *file;
   while (ent && !sigint_flag) {
-    char *path = join_path(recdir_top(recdir)->path, ent->d_name);
+    path = join_path(recdir_top(recdir)->path, ent->d_name);
     if (access(path, W_OK) != 0) {
       exit_error(errno, 1, NULL);
     }
@@ -173,12 +181,23 @@ int main(int argc, char **argv) {
     nfiles++;
     int line_number = 0;
     // FIXME
-    lineptr = (char *)malloc(sizeof(char *) * LINE_SIZE);
-    line_size = LINE_SIZE;
     int getline_res = 0;
     while (1) {
+      lineptr = (char *)malloc(sizeof(char *) * LINE_SIZE);
+      if (!lineptr) {
+        exit_error(0, 1, "Can't allocate memory\n");
+      }
+
+      line_size = LINE_SIZE;
       getline_res = getline(&lineptr, &line_size, file);
       if (getline_res == -1) {
+        if(lineptr) {
+          free(lineptr);
+        }
+        if (path) {
+          free(path);
+        }
+        fclose(file);
         break;
       }
 
@@ -187,6 +206,7 @@ int main(int argc, char **argv) {
       line_number++;
 
       if (rc < 0) {
+        free(lineptr);
         continue;
       }
 
@@ -194,10 +214,13 @@ int main(int argc, char **argv) {
       printf(BLUE "%s" RESET ":" GREEN "%d" RESET ": %s", path, line_number,
              line);
       matches++;
+      if (lineptr) {
+        free(lineptr);
+      }
     }
 
     if (errno != 0) {
-      free(lineptr);
+      cleanup();
       exit_error(errno, 1, path);
     }
 
@@ -206,13 +229,12 @@ int main(int argc, char **argv) {
   }
 
   if (errno != 0) {
-    free(lineptr);
+    cleanup();
     exit_error(errno, 1, NULL);
   }
 
   recdir_close(recdir);
   printres(matches_flag, nfiles_flag, lines_number_flag);
-  free(lineptr);
-  pcre_free(re);
+  cleanup();
   return EXIT_SUCCESS;
 }
