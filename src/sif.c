@@ -24,7 +24,7 @@
 
 char *lineptr;
 char *line;
-int line_size;
+size_t line_size;
 
 int version_flag = 0;
 int matches_flag = 0;
@@ -78,7 +78,7 @@ void exit_error(int errnum, int exit_status, char *msg) {
 }
 
 // no white spaces; get rid of white spaces and tabe at the start of a string
-char *nws(const char *str) {
+const char *nws(const char *str) {
   while (str[0] == ' ' || str[0] == '\t') {
     str++;
   }
@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
 
   pcre *re;
   const char *error;
-  const char *erroffset;
+  int erroffset;
   int rc;
 
   const char *dir_path = NULL;
@@ -142,7 +142,7 @@ int main(int argc, char **argv) {
   re = pcre_compile(re_pattern, 0, &error, &erroffset, NULL);
 
   if (re == NULL) {
-    printf("REGEX compilation failed at \"%s\" : %s\n", re_pattern + (int) (erroffset - 1),
+    printf("REGEX compilation failed at \"%s\" : %s\n", re_pattern + (erroffset - 1),
            error);
     return 1;
   }
