@@ -1,4 +1,6 @@
-// TODO: more flags arguments
+// TODOOO: Better argument handling
+// TODO: Better syntax
+// TODOO: Better cleanup()
 #define _DEFAULT_SOURCE
 #include <assert.h>
 #include <errno.h>
@@ -211,7 +213,7 @@ int main(int argc, char **argv) {
       }
 
       line = nws(lineptr);
-      printf(BLUE "%s" RESET ":" GREEN "%d" RESET ": %s", path, line_number,
+      printf(BOLD BLUE "%s" RESET ":" GREEN "%d" RESET ": %s", path, line_number,
              line);
       matches++;
       if (lineptr) {
