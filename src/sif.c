@@ -2,7 +2,7 @@
 #define _DEFAULT_SOURCE
 #include <assert.h>
 #include <errno.h>
-#include <regex.h>
+#include <pcre.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,12 +38,11 @@ int nfiles = 0;
 int lines_number = 0;
 
 static const char *const usage[] = {
-    "sif [options] -s <regex_pattern> -p <path>",
+    "sif [options] -s <re_pattern> -p <path>",
     NULL,
 };
 
 void printres(int matches_flag, int nfiles_flag, int lines_number_flag) {
-  printf("\n");
   if (matches_flag) {
     printf("Matches: %d\t", matches);
   }
@@ -89,18 +88,22 @@ char *nws(const char *str) {
 int main(int argc, char **argv) {
 
   sigaction(SIGINT, &(struct sigaction){.sa_handler = sighandler}, NULL);
-  int compstat = 0, searchstat = 0;
+
+  pcre *re;
+  const char *error;
+  const char *erroffset;
+  int rc;
 
   const char *dir_path = NULL;
-  const char *regex_ptrn = NULL;
-  regex_t regex;
+  const char *re_pattern = NULL;
 
   struct argparse_option options[] = {
       OPT_HELP(),
       OPT_GROUP("Arguments"),
-      OPT_STRING('s', "search", &regex_ptrn, "Pattern to search for", NULL, 0,
+      OPT_STRING('s', "search", &re_pattern, "Pattern to search for", NULL, 0,
                  0),
-      OPT_STRING('p', "path", &dir_path, "Directory path", NULL, 0, 0),
+      OPT_STRING('p', "path", &dir_path,
+                 "Directory path, Current directory is default", NULL, 0, 0),
       OPT_GROUP("Search options"),
       OPT_BOOLEAN('u', "hidden", &hidden_flag, "Search hidden folders", NULL, 0,
                   0),
@@ -128,20 +131,24 @@ int main(int argc, char **argv) {
   }
 
   if (!dir_path) {
-    argparse_usage(&argparse);
-    exit(1);
+    dir_path = strdup(".");
   }
-  if (!regex_ptrn) {
+
+  if (!re_pattern) {
     argparse_usage(&argparse);
-    exit(1);
-  }
-  compstat = regcomp(&regex, regex_ptrn, 0);
-  if (compstat != 0) {
-    fprintf(stderr, "REGEX pattern can't be compiled.\n");
     exit(1);
   }
 
+  re = pcre_compile(re_pattern, 0, &error, &erroffset, NULL);
+
+  if (re == NULL) {
+    printf("REGEX compilation failed at \"%s\" : %s\n", re_pattern + (int) (erroffset - 1),
+           error);
+    return 1;
+  }
+
   RECDIR *recdir = recdir_open(dir_path);
+
   if (!recdir) {
     fprintf(
         stderr,
@@ -175,17 +182,18 @@ int main(int argc, char **argv) {
         break;
       }
 
-      searchstat = regexec(&regex, lineptr, 0, NULL, 0);
-
+      rc = pcre_exec(re, NULL, lineptr, strlen(lineptr), 0, 0, NULL, 0);
       lines_number++;
       line_number++;
 
-      if (searchstat == 0) {
-        line = nws(lineptr);
-        printf(BLUE "%s" RESET ":" GREEN "%d" RESET ": %s", path, line_number,
-               line);
-        matches++;
+      if (rc < 0) {
+        continue;
       }
+
+      line = nws(lineptr);
+      printf(BLUE "%s" RESET ":" GREEN "%d" RESET ": %s", path, line_number,
+             line);
+      matches++;
     }
 
     if (errno != 0) {
@@ -205,5 +213,6 @@ int main(int argc, char **argv) {
   recdir_close(recdir);
   printres(matches_flag, nfiles_flag, lines_number_flag);
   free(lineptr);
+  pcre_free(re);
   return EXIT_SUCCESS;
 }

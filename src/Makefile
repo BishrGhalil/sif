@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-Wall -std=c11 -ggdb
-LIBS=
+LIBS=-lpcre
 SRC=sif.c recdir.c argparse.c
 OUTPUT=sif
 
