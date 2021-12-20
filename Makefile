@@ -2,15 +2,16 @@ CC=gcc
 CFLAGS=-Wall -std=c11 -ggdb
 LIBS=
 SRC=src/sif.c src/recdir.c src/argparse.c
+OUTPUT=sif
 
 all: main
 main: $(SRC)
-	$(CC) $(CFLAGS) $(SRC) $(LIBS) -o sif
+	$(CC) $(CFLAGS) $(SRC) $(LIBS) -o $(OUTPUT)
 install:
-	cp sif /usr/bin/sif
+	cp $(OUTPUT) /usr/bin/$(OUTPUT)
 
 uninstall:
-	rm -rf /usr/bin/sif
+	rm -rf /usr/bin/$(OUTPUT)
 clean:
-	rm -rf sif
+	rm -rf $(OUTPUT)
 

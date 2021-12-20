@@ -12,29 +12,37 @@
 #include "argparse.h"
 #include "recdir.h"
 
-#define VERSION "1.0"
+#define VERSION "1.12"
+#define PROGRAM "sif"
+
 #define LINE_SIZE 512
 
+#define BOLD "\e[1m"
+#define BLUE "\e[34m"
+#define RESET "\e[0m"
+#define GREEN "\e[32m"
+
 char *lineptr;
+char *line;
 int line_size;
 
 int version_flag = 0;
 int matches_flag = 0;
 int nfiles_flag = 0;
-int nlines_flag = 0;
+int lines_number_flag = 0;
 int hidden_flag = 0;
 int sigint_flag = 0;
 
 int matches = 0;
 int nfiles = 0;
-int nlines = 0;
+int lines_number = 0;
 
 static const char *const usage[] = {
     "sif [options] -s <regex_pattern> -p <path>",
     NULL,
 };
 
-void printres(int matches_flag, int nfiles_flag, int nlines_flag) {
+void printres(int matches_flag, int nfiles_flag, int lines_number_flag) {
   printf("\n");
   if (matches_flag) {
     printf("Matches: %d\t", matches);
@@ -42,8 +50,8 @@ void printres(int matches_flag, int nfiles_flag, int nlines_flag) {
   if (nfiles_flag) {
     printf("Files: %d\t", nfiles);
   }
-  if (nlines_flag) {
-    printf("Lines: %d\t", nlines);
+  if (lines_number_flag) {
+    printf("Lines: %d\t", lines_number);
   }
   printf("\n");
 }
@@ -51,7 +59,7 @@ void printres(int matches_flag, int nfiles_flag, int nlines_flag) {
 void sighandler(int sig) {
   (void)sig;
   sigint_flag = 1;
-  printres(matches_flag, nfiles_flag, nlines_flag);
+  printres(matches_flag, nfiles_flag, lines_number_flag);
   free(lineptr);
   exit(0);
   return;
@@ -66,8 +74,16 @@ void exit_error(int errnum, int exit_status, char *msg) {
     fprintf(stderr, "ERROR\n");
   }
 
-  printres(matches_flag, nfiles_flag, nlines_flag);
+  printres(matches_flag, nfiles_flag, lines_number_flag);
   exit(exit_status);
+}
+
+// no white spaces; get rid of white spaces and tabe at the start of a string
+char *nws(const char *str) {
+  while (str[0] == ' ' || str[0] == '\t') {
+    str++;
+  }
+  return str;
 }
 
 int main(int argc, char **argv) {
@@ -90,8 +106,8 @@ int main(int argc, char **argv) {
                   0),
       OPT_GROUP("Output options"),
       OPT_BOOLEAN('m', "matches", &matches_flag, "Matches number", NULL, 0, 0),
-      OPT_BOOLEAN('l', "lines", &nlines_flag, "Total searched lines", NULL, 0,
-                  0),
+      OPT_BOOLEAN('l', "lines", &lines_number_flag, "Total searched lines",
+                  NULL, 0, 0),
       OPT_BOOLEAN('f', "files", &nfiles_flag, "Total searched files", NULL, 0,
                   0),
       OPT_GROUP("Info options"),
@@ -148,17 +164,26 @@ int main(int argc, char **argv) {
       exit_error(errno, 1, "Could not read the file");
     }
     nfiles++;
-    int i = 0;
+    int line_number = 0;
     // FIXME
     lineptr = (char *)malloc(sizeof(char *) * LINE_SIZE);
     line_size = LINE_SIZE;
     int getline_res = 0;
-    while (getline_res != -1) {
+    while (1) {
       getline_res = getline(&lineptr, &line_size, file);
+      if (getline_res == -1) {
+        break;
+      }
+
       searchstat = regexec(&regex, lineptr, 0, NULL, 0);
-      nlines++;
+
+      lines_number++;
+      line_number++;
+
       if (searchstat == 0) {
-        printf("\e[1m\e[34m%s\e[0m:\e[32m%d\e[0m:\e[0m%s", path, ++i, lineptr);
+        line = nws(lineptr);
+        printf(BLUE "%s" RESET ":" GREEN "%d" RESET ": %s", path, line_number,
+               line);
         matches++;
       }
     }
@@ -167,6 +192,7 @@ int main(int argc, char **argv) {
       free(lineptr);
       exit_error(errno, 1, path);
     }
+
     fclose(file);
     ent = recdir_read(recdir, hidden_flag);
   }
@@ -177,7 +203,7 @@ int main(int argc, char **argv) {
   }
 
   recdir_close(recdir);
-  printres(matches_flag, nfiles_flag, nlines_flag);
+  printres(matches_flag, nfiles_flag, lines_number_flag);
   free(lineptr);
   return EXIT_SUCCESS;
 }
