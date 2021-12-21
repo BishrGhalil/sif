@@ -1,6 +1,6 @@
 // TODOOO: Better argument handling
+// TODOO: Better cleanup() when sigint
 // TODO: Better syntax
-// TODOO: Better cleanup()
 #define _DEFAULT_SOURCE
 #include <assert.h>
 #include <errno.h>
@@ -43,7 +43,6 @@ int sigint_flag = 0;
 int matches = 0;
 int nfiles = 0;
 int lines_number = 0;
-
 
 static const char *const usage[] = {
     "sif [options] -s <re_pattern> -p <path>",
@@ -152,8 +151,8 @@ int main(int argc, char **argv) {
   re = pcre_compile(re_pattern, 0, &error, &erroffset, NULL);
 
   if (re == NULL) {
-    printf("REGEX compilation failed at \"%s\" : %s\n", re_pattern + (erroffset - 1),
-           error);
+    printf("REGEX compilation failed at \"%s\" : %s\n",
+           re_pattern + (erroffset - 1), error);
     return 1;
   }
 
@@ -175,6 +174,7 @@ int main(int argc, char **argv) {
     if (access(path, W_OK) != 0) {
       exit_error(errno, 1, NULL);
     }
+    // FIXME: unvalid read of 4 bytes
     file = fopen(path, "r");
     if (errno != 0) {
       printf("FILE: %s\n", path);
@@ -182,7 +182,6 @@ int main(int argc, char **argv) {
     }
     nfiles++;
     int line_number = 0;
-    // FIXME
     int getline_res = 0;
     while (1) {
       lineptr = (char *)malloc(sizeof(char *) * LINE_SIZE);
@@ -193,13 +192,12 @@ int main(int argc, char **argv) {
       line_size = LINE_SIZE;
       getline_res = getline(&lineptr, &line_size, file);
       if (getline_res == -1) {
-        if(lineptr) {
+        if (lineptr) {
           free(lineptr);
         }
         if (path) {
           free(path);
         }
-        fclose(file);
         break;
       }
 
@@ -213,8 +211,8 @@ int main(int argc, char **argv) {
       }
 
       line = nws(lineptr);
-      printf(BOLD BLUE "%s" RESET ":" GREEN "%d" RESET ": %s", path, line_number,
-             line);
+      printf(BOLD BLUE "%s" RESET ":" GREEN "%d" RESET ": %s", path,
+             line_number, line);
       matches++;
       if (lineptr) {
         free(lineptr);
@@ -226,7 +224,9 @@ int main(int argc, char **argv) {
       exit_error(errno, 1, path);
     }
 
-    fclose(file);
+    if (file) {
+      fclose(file);
+    }
     ent = recdir_read(recdir, hidden_flag);
   }
 
